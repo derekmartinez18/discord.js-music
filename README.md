@@ -16,15 +16,19 @@ Things to do:
 Things left to test:
 * Sharing queue across multiple servers 
 
-Installation:
+Installation:  
+1. Download and extract anywhere  
+2. Edit examples/musicBot to match your needed config  
+3. In the root folder, run:
 ```bash
-npm install discord.js-music
+npm install
 ```
+
 
 This is a music plugin for Discord.js. Using it is as easy as:
 ```javascript
 const Client = require('discord.js').Client;
-const music = require('discord.js-music');
+const music = require('./path/to/this/project');
 
 const client = new Client();
 music(client);
