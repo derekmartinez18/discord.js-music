@@ -1,6 +1,6 @@
 # Discord.js Music Plugin
 
-This version is not yet stable, although has been mildly tested, it has not been that extensive. It's an update of the original by [ruiqimao](https://github.com/ruiqimao/discord.js-music) for Discord.js's version v11.x, and adds a few extra sprinkles. It still requires tweaks and testing but yeah it's something.
+This version is not yet stable, although has been mildly tested, it has not been that extensive. It's an update of the original by [ruiqimao](https://github.com/ruiqimao/discord.js-music) for [Discord.js](https://discord.js.org/)'s version v11.x, and adds a few extra sprinkles. It still requires tweaks and testing but yeah it's something.
 
 It adds:
 * volume control (1 - 200)
