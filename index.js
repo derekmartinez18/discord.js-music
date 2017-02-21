@@ -185,7 +185,8 @@ module.exports = function (client, options) {
 		let queueStatus = 'Stopped';
 		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
 		if (voiceConnection !== null) {
-			queueStatus = voiceConnection.paused ? 'Paused' : 'Playing';
+			const dispatcher = voiceConnection.player.dispatcher;
+			queueStatus = dispatcher.paused ? 'Paused' : 'Playing';
 		}
 
 		// Send the queue and status.
@@ -208,7 +209,8 @@ module.exports = function (client, options) {
 
 		// Pause.
 		msg.channel.sendMessage(wrap('Playback paused.'));
-		if (voiceConnection.playingIntent) voiceConnection.pause();
+		const dispatcher = voiceConnection.player.dispatcher;
+		if (!dispatcher.paused) dispatcher.pause();
 	}
 
 	/*
@@ -227,7 +229,8 @@ module.exports = function (client, options) {
 
 		// Resume.
 		msg.channel.sendMessage(wrap('Playback resumed.'));
-		if (voiceConnection.playingIntent) voiceConnection.resume();
+		const dispatcher = voiceConnection.player.dispatcher;
+		if (dispatcher.paused) dispatcher.resume();
 	}
 
 	/*
