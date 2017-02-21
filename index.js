@@ -17,7 +17,7 @@ module.exports = function (client, options) {
 	let MAX_QUEUE_SIZE = (options && options.maxQueueSize) || 20;
 	let DEFAULT_VOLUME = (options && options.volume) || 50;
 	let ALLOW_ALL_SKIP = (options && options.anyoneCanSkip) || false;
-	let MUSIC_MANAGER = (options && options.musicManager) || '';
+	let MUSIC_MANAGER = (options && options.musicManager) || {};
 	let CLEAR_INVOKER = (options && options.clearInvoker) || false;
 
 	// Create an object of queues.
@@ -60,7 +60,22 @@ module.exports = function (client, options) {
 	 * @return role:object - The role object
 	 */
 	function getRoleByName(guild, rank) {
-		return client.guilds.get(guild).roles.find(role => String(role.name).toLowerCase() === rank.toLowerCase());
+		return client.guilds.get(guild).roles.find(role => String(role.name).toLowerCase() === String(rank).toLowerCase());
+	}
+
+	/*
+     * Checks if a user is permitted to skip a track 
+	 * @param msg:object - The Discord message object
+	 * @param queue:array - The current queue
+	 * @return canSkip:boolean - If the user can skip
+	 * TODO: Make this better, kinda poorly written.
+	 */
+	function canSkip(msg, queue) {
+		if (ALLOW_ALL_SKIP) return true;
+		else if (queue[0].requester === msg.author.id) return true;
+		else if (!(msg.guild.id in MUSIC_MANAGER)) return false;
+		else if (msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER[msg.guild.id]).id)) return true;
+		else return false;
 	}
 
 	/*
@@ -85,7 +100,7 @@ module.exports = function (client, options) {
 	 */
 	function play(msg, suffix) {
 		// Make sure the user is in a voice channel.
-		if (msg.member.voiceChannel === null) return msg.channel.sendMessage(wrap('You\'re not in a voice channel.'));
+		if (msg.member.voiceChannel === undefined) return msg.channel.sendMessage(wrap('You\'re not in a voice channel.'));
 
 		// Make sure the suffix exists.
 		if (!suffix) return msg.channel.sendMessage(wrap('No video specified!'));
@@ -114,7 +129,7 @@ module.exports = function (client, options) {
 				}
 
 				info.url = suffix;
-				info.queuer = msg.author.id;
+				info.requester = msg.author.id;
 
 				// Queue the video.
 				response.edit(wrap('Queued: ' + info.title)).then(() => {
@@ -143,10 +158,9 @@ module.exports = function (client, options) {
 		// Get the queue.
 		const queue = getQueue(msg.guild.id);
 
-		if (!ALLOW_ALL_SKIP && queue[0].queuer !== msg.author.id && !msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
-			return msg.channel.sendMessage(wrap('You cannot skip this as you didn\'t queue it.')).then((response) => {
-				response.delete(5000);
-			});
+		if (!canSkip(msg, queue)) return msg.channel.sendMessage(wrap('You cannot skip this as you didn\'t queue it.')).then((response) => {
+			response.delete(5000);
+		});
 
 		// Get the number to skip.
 		let toSkip = 1; // Default 1.
@@ -204,7 +218,7 @@ module.exports = function (client, options) {
 		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
 		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
 
-		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER[msg.guild.id]).id))
 			return msg.channel.sendMessage(wrap('You are not authorized to use this.'));
 
 		// Pause.
@@ -224,7 +238,7 @@ module.exports = function (client, options) {
 		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
 		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
 
-		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER[msg.guild.id]).id))
 			return msg.channel.sendMessage(wrap('You are not authorized to use this.'));
 
 		// Resume.
@@ -244,7 +258,7 @@ module.exports = function (client, options) {
 		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
 		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
 
-		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER[msg.guild.id]).id))
 			return msg.channel.sendMessage(wrap('You are not authorized to use this.'));
 
 		// Get the dispatcher
@@ -327,7 +341,6 @@ module.exports = function (client, options) {
 						executeQueue(msg, queue);
 					}, 1000);
 				});
-
 			}).catch((error) => {
 				console.log(error);
 			});
