@@ -1,5 +1,17 @@
 # Discord.js Music Plugin
 
+This version is not yet stable, although has been mildly tested has not been extensive. It's an update of the original by ruiqimao for Discord.js's version v11.x, and adds a few extra sprinkles. It still requires tweaks and testing but yeah.
+
+It adds:
+* volume control
+* a music manager by Discord role (single right now)
+* restrict `skip` to the person who added the request, and music managers
+* restricts `resume` and `pause` to music managers
+
+Things to do:
+* Turn `musicManager` into an object to contain and support multiple guilds.
+* Make sure it really really works.
+
 Installation:
 ```bash
 npm install discord.js-music
@@ -27,13 +39,19 @@ The module consists of a single function, which takes two arguments:
  *                global: Whether to use the same queue for all servers
  *                        instead of server-specific queues (default false).
  *                maxQueueSize: The maximum queue size (default 20).
+ 				  volume: The volume to start playback at (default 50 [0.5]).
+ 				  		  anyoneCanSkip: Allow anyone to skip a track (if disabled, only the music managers + the person who added can skip). (default false).
+ 				  musicManager: The name of the Discord role approved to manage the bot. (default null)
+ 				  clearInvoker: Have the bot remove messages which invoke, these are the one that start with the 		 prefix provided. (default false)
+
  */
 music(client, options);
 ```
 
 The commands available are:
-* `play <url|search>`: Play a video/music. It can take a URL from various services (YouTube, Vimeo, YouKu, etc). If no URL is specified, the bot will search Google for the video.
+* `play <url>`: Play a video/music. It can take a URL from various services (YouTube, Vimeo, YouKu, etc). Search has been removed temporally until a workaround can be found.
 * `skip [number]`: Skip some number of songs. Will skip 1 song if a number is not specified.
 * `queue`: Display the current queue.
-* `pause`: Pause music playback.
-* `resume`: Resume music playback.
+* `pause`: Pause music playback. (requires music manager)
+* `resume`: Resume music playback. (requires music manager)
+* `volume`: Adjust the playback volume between 1 and 200 (requires music manager)

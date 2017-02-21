@@ -20,6 +20,9 @@
     "plugin"
   ],
   "dependencies": {
-    "youtube-dl": "^1.11.1"
+    "discord.js": "^11.0.0",
+    "node-opus": "^0.2.4",
+    "youtube-dl": "^1.11.1",
+    "ytdl-core": "^0.9.1"
   }
 }

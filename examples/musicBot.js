@@ -10,8 +10,10 @@ const client = new Client();
 music(client, {
 	prefix: '-',     // Prefix of '-'.
 	global: false,   // Server-specific queues.
-	maxQueueSize: 10 // Maximum queue size of 10.
+	maxQueueSize: 10, // Maximum queue size of 10.
+	musicManager: 'Music Manager', // The name of the role allowed to manage the bot (TODO: multi-guild support)
+	clearInvoker: true // If permissions applicable, allow the bot to delete the messages that invoke it (start with prefix)
 });
 
 // Login.
-client.loginWithToken(Auth.token);
+client.login(Auth.token);

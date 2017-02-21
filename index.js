@@ -1,5 +1,5 @@
 const YoutubeDL = require('youtube-dl');
-const Request = require('request');
+const ytdl = require('ytdl-core');
 
 /*
  * Takes a discord.js client and turns it into a music bot.
@@ -10,11 +10,15 @@ const Request = require('request');
  *                global: Whether to use a global queue instead of a server-specific queue (default false).
  *                maxQueueSize: The maximum queue size (default 20).
  */
-module.exports = function(client, options) {
+module.exports = function (client, options) {
 	// Get all options.
 	let PREFIX = (options && options.prefix) || '!';
 	let GLOBAL = (options && options.global) || false;
 	let MAX_QUEUE_SIZE = (options && options.maxQueueSize) || 20;
+	let DEFAULT_VOLUME = (options && options.volume) || 50;
+	let ALLOW_ALL_SKIP = (options && options.anyoneCanSkip) || false;
+	let MUSIC_MANAGER = (options && options.musicManager) || '';
+	let CLEAR_INVOKER = (options && options.clearInvoker) || false;
 
 	// Create an object of queues.
 	let queues = {};
@@ -31,14 +35,33 @@ module.exports = function(client, options) {
 
 			// Process the commands.
 			switch (command) {
-				case 'play': return play(msg, suffix);
-				case 'skip': return skip(msg, suffix);
-				case 'queue': return queue(msg, suffix);
-				case 'pause': return pause(msg, suffix);
-				case 'resume': return resume(msg, suffix);
+				case 'play':
+					return play(msg, suffix);
+				case 'skip':
+					return skip(msg, suffix);
+				case 'queue':
+					return queue(msg, suffix);
+				case 'pause':
+					return pause(msg, suffix);
+				case 'resume':
+					return resume(msg, suffix);
+				case 'volume':
+					return volume(msg, suffix);
+			}
+			if (CLEAR_INVOKER) {
+				msg.delete();
 			}
 		}
 	});
+
+	/*
+	 * @param guild:string - The unique id of the guild
+	 * @param rank:string - The name of the rank to fetch
+	 * @return role:object - The role object
+	 */
+	function getRoleByName(guild, rank) {
+		return client.guilds.get(guild).roles.find(role => String(role.name).toLowerCase() === rank.toLowerCase());
+	}
 
 	/*
 	 * Gets a queue.
@@ -62,42 +85,48 @@ module.exports = function(client, options) {
 	 */
 	function play(msg, suffix) {
 		// Make sure the user is in a voice channel.
-		if (msg.author.voiceChannel === null) return client.sendMessage(msg, wrap('You\'re not in a voice channel.'));
+		if (msg.member.voiceChannel === null) return msg.channel.sendMessage(wrap('You\'re not in a voice channel.'));
 
 		// Make sure the suffix exists.
-		if (!suffix) return client.sendMessage(msg, wrap('No video specified!'));
+		if (!suffix) return msg.channel.sendMessage(wrap('No video specified!'));
 
 		// Get the queue.
-		const queue = getQueue(msg.server.id);
+		const queue = getQueue(msg.guild.id);
 
 		// Check if the queue has reached its maximum size.
 		if (queue.length >= MAX_QUEUE_SIZE) {
-			return client.sendMessage(msg, wrap('Maximum queue size reached!'));
+			return msg.channel.sendMessage(wrap('Maximum queue size reached!'));
 		}
 
 		// Get the video information.
-		client.sendMessage(msg, wrap('Searching...')).then(response => {
-			// If the suffix doesn't start with 'http', assume it's a search.
+		msg.channel.sendMessage(wrap('Searching...')).then(response => {
 			if (!suffix.toLowerCase().startsWith('http')) {
-				suffix = 'gvsearch1:' + suffix;
+				return msg.channel.sendMessage(wrap('You didn\'t provide a url!')).then((response) => {
+					response.delete(5000);
+				});
 			}
 
 			// Get the video info from youtube-dl.
 			YoutubeDL.getInfo(suffix, ['-q', '--no-warnings', '--force-ipv4'], (err, info) => {
 				// Verify the info.
 				if (err || info.format_id === undefined || info.format_id.startsWith('0')) {
-					return client.updateMessage(response, wrap('Invalid video!'));
+					return response.edit(wrap('Invalid video!'));
 				}
 
+				info.url = suffix;
+				info.queuer = msg.author.id;
+
 				// Queue the video.
-				client.updateMessage(response, wrap('Queued: ' + info.title)).then(() => {
+				response.edit(wrap('Queued: ' + info.title)).then(() => {
 					queue.push(info);
 
 					// Play if only one element in the queue.
 					if (queue.length === 1) executeQueue(msg, queue);
-				}).catch(() => {});
+				}).catch(() => {
+				});
 			});
-		}).catch(() => {});
+		}).catch(() => {
+		});
 	}
 
 	/*
@@ -108,11 +137,16 @@ module.exports = function(client, options) {
 	 */
 	function skip(msg, suffix) {
 		// Get the voice connection.
-		const voiceConnection = client.voiceConnections.get('server', msg.server);
-		if (voiceConnection === null) return client.sendMessage(msg, wrap('No music being played.'));
+		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
+		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
 
 		// Get the queue.
-		const queue = getQueue(msg.server.id);
+		const queue = getQueue(msg.guild.id);
+
+		if (!ALLOW_ALL_SKIP && queue[0].queuer !== msg.author.id && !msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+			return msg.channel.sendMessage(wrap('You cannot skip this as you didn\'t queue it.')).then((response) => {
+				response.delete(5000);
+			});
 
 		// Get the number to skip.
 		let toSkip = 1; // Default 1.
@@ -125,10 +159,11 @@ module.exports = function(client, options) {
 		queue.splice(0, toSkip - 1);
 
 		// Resume and stop playing.
-		if (voiceConnection.playingIntent) voiceConnection.resume();
-		voiceConnection.stopPlaying();
+		const dispatcher = voiceConnection.player.dispatcher;
+		if (voiceConnection.paused) dispatcher.resume();
+		dispatcher.end();
 
-		client.sendMessage(msg, wrap('Skipped ' + toSkip + '!'));
+		msg.channel.sendMessage(wrap('Skipped ' + toSkip + '!'));
 	}
 
 	/*
@@ -139,7 +174,7 @@ module.exports = function(client, options) {
 	 */
 	function queue(msg, suffix) {
 		// Get the queue.
-		const queue = getQueue(msg.server.id);
+		const queue = getQueue(msg.guild.id);
 
 		// Get the queue text.
 		const text = queue.map((video, index) => (
@@ -148,13 +183,13 @@ module.exports = function(client, options) {
 
 		// Get the status of the queue.
 		let queueStatus = 'Stopped';
-		const voiceConnection = client.voiceConnections.get('server', msg.server);
+		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
 		if (voiceConnection !== null) {
 			queueStatus = voiceConnection.paused ? 'Paused' : 'Playing';
 		}
 
 		// Send the queue and status.
-		client.sendMessage(msg, wrap('Queue (' + queueStatus + '):\n' + text));
+		msg.channel.sendMessage(wrap('Queue (' + queueStatus + '):\n' + text));
 	}
 
 	/*
@@ -165,11 +200,14 @@ module.exports = function(client, options) {
 	 */
 	function pause(msg, suffix) {
 		// Get the voice connection.
-		const voiceConnection = client.voiceConnections.get('server', msg.server);
-		if (voiceConnection === null) return client.sendMessage(msg, wrap('No music being played.'));
+		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
+		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
+
+		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+			return msg.channel.sendMessage(wrap('You are not authorized to use this.'));
 
 		// Pause.
-		client.sendMessage(msg, wrap('Playback paused.'));
+		msg.channel.sendMessage(wrap('Playback paused.'));
 		if (voiceConnection.playingIntent) voiceConnection.pause();
 	}
 
@@ -181,12 +219,40 @@ module.exports = function(client, options) {
 	 */
 	function resume(msg, suffix) {
 		// Get the voice connection.
-		const voiceConnection = client.voiceConnections.get('server', msg.server);
-		if (voiceConnection === null) return client.sendMessage(msg, wrap('No music being played.'));
+		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
+		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
+
+		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+			return msg.channel.sendMessage(wrap('You are not authorized to use this.'));
 
 		// Resume.
-		client.sendMessage(msg, wrap('Playback resumed.'));
+		msg.channel.sendMessage(wrap('Playback resumed.'));
 		if (voiceConnection.playingIntent) voiceConnection.resume();
+	}
+
+	/*
+	 * Volume command.
+	 *
+	 * @param msg Original message.
+	 * @param suffix Command suffix.
+	 */
+	function volume(msg, suffix) {
+		// Get the voice connection.
+		const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
+		if (voiceConnection === null) return msg.channel.sendMessage(wrap('No music being played.'));
+
+		if (!msg.member.roles.has(getRoleByName(msg.guild.id, MUSIC_MANAGER).id))
+			return msg.channel.sendMessage(wrap('You are not authorized to use this.'));
+
+		// Get the dispatcher
+		const dispatcher = voiceConnection.player.dispatcher;
+
+		if (suffix > 200 || suffix < 0) return msg.channel.sendMessage(wrap('Volume out of range!')).then((response) => {
+			response.delete(5000);
+		});
+
+		msg.channel.sendMessage(wrap("Volume set to " + suffix));
+		dispatcher.setVolume((suffix/100));
 	}
 
 	/*
@@ -198,22 +264,24 @@ module.exports = function(client, options) {
 	function executeQueue(msg, queue) {
 		// If the queue is empty, finish.
 		if (queue.length === 0) {
-			client.sendMessage(msg, wrap('Playback finished.'));
+			msg.channel.sendMessage(wrap('Playback finished.'));
 
 			// Leave the voice channel.
-			const voiceConnection = client.voiceConnections.get('server', msg.server);
-			if (voiceConnection !== null) client.leaveVoiceChannel(voiceConnection.voiceChannel);
+			const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
+			if (voiceConnection !== null) return voiceConnection.disconnect();
 		}
 
 		new Promise((resolve, reject) => {
 			// Join the voice channel if not already in one.
-			const voiceConnection = client.voiceConnections.get('server', msg.server);
+			const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
 			if (voiceConnection === null) {
 				// Check if the user is in a voice channel.
-				if (msg.author.voiceChannel) {
-					client.joinVoiceChannel(msg.author.voiceChannel).then(connection => {
+				if (msg.member.voiceChannel) {
+					msg.member.voiceChannel.join().then(connection => {
 						resolve(connection);
-					}).catch(() => {});
+					}).catch((error) => {
+						console.log(error);
+					});
 				} else {
 					// Otherwise, clear the queue and do nothing.
 					queue.splice(0, queue.length);
@@ -226,42 +294,43 @@ module.exports = function(client, options) {
 			// Get the first item in the queue.
 			const video = queue[0];
 
+			console.log(video.url);
+
 			// Play the video.
-			client.sendMessage(msg, wrap('Now Playing: ' + video.title)).then(() => {
-				connection.playRawStream(Request(video.url)).then(intent => {
-					// Catch errors in the connection.
-					connection.streamProc.stdin.on('error', () => {
-						// Skip to the next song.
-						queue.shift();
-						executeQueue(msg, queue);
-					});
-					connection.streamProc.stdout.on('error', () => {
-						// Skip to the next song.
-						queue.shift();
-						executeQueue(msg, queue);
-					});
+			msg.channel.sendMessage(wrap('Now Playing: ' + video.title)).then(() => {
+				let dispatcher = connection.playStream(ytdl(video.url, {filter: 'audioonly'}), {seek: 0, volume: (DEFAULT_VOLUME/100)});
 
-					// Catch all errors.
-					intent.on('error', () => {
-						// Skip to the next song.
+				connection.on('error', (error) => {
+					// Skip to the next song.
+					console.log(error);
+					queue.shift();
+					executeQueue(msg, queue);
+				});
+
+				dispatcher.on('error', (error) => {
+					// Skip to the next song.
+					console.log(error);
+					queue.shift();
+					executeQueue(msg, queue);
+				});
+
+				dispatcher.on('end', () => {
+					// Wait a second.
+					setTimeout(() => {
+						// Remove the song from the queue.
 						queue.shift();
+
+						// Play the next song in the queue.
 						executeQueue(msg, queue);
-					});
+					}, 1000);
+				});
 
-					// Catch the end event.
-					intent.on('end', () => {
-						// Wait a second.
-						setTimeout(() => {
-							// Remove the song from the queue.
-							queue.shift();
-
-							// Play the next song in the queue.
-							executeQueue(msg, queue);
-						}, 1000);
-					});
-				}).catch(() => {});
-			}).catch(() => {});
-		}).catch(() => {});
+			}).catch((error) => {
+				console.log(error);
+			});
+		}).catch((error) => {
+			console.log(error);
+		});
 	}
 }
 
