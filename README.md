@@ -59,7 +59,7 @@ musicManager: {
 	},
 ```
 
-**How to get server id?**
+**How to get server id?**  
 1. Goto server settings  
 2. Select 'Widget'  
 3. Copy the number in `SERVER ID`
