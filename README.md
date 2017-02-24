@@ -1,6 +1,6 @@
 # Discord.js Music Plugin
 
-This version is not yet stable, although has been mildly tested, it has not been that extensive. It's an update of the original by ruiqimao for Discord.js's version v11.x, and adds a few extra sprinkles. It still requires tweaks and testing but yeah it's something.
+This version is not yet stable, although has been mildly tested, it has not been that extensive. It's an update of the original by [ruiqimao](https://github.com/ruiqimao/discord.js-music) for [Discord.js](https://discord.js.org/)'s version v11.x, and adds a few extra sprinkles. It still requires tweaks and testing but yeah it's something.
 
 It adds:
 * volume control (1 - 200)
@@ -23,15 +23,19 @@ Known Issues:
 * On Windows playback seems to be cut short if there's any hint of lag. Probably not a good idea to play Overwatch and host this at the same time on the same system.
 * On Windows there seems to be a lot more occurrences of "Invalid Video". 
 
-Installation:
+Installation:  
+1. Download and extract anywhere  
+2. Edit examples/musicBot to match your needed config  
+3. In the root folder, run:
 ```bash
-npm install discord.js-music
+npm install
 ```
+
 
 This is a music plugin for Discord.js. Using it is as easy as:
 ```javascript
 const Client = require('discord.js').Client;
-const music = require('discord.js-music');
+const music = require('./path/to/this/project');
 
 const client = new Client();
 music(client);
