@@ -7,14 +7,21 @@ It adds:
 * a music manager by Discord role (multi-server compatible, customizable)
 * (optionally) restricts `skip` to the person who added the request, and music managers
 * restricts `resume`, `pause`, and `volume` to music managers
+* optionally auto join selected music channels 
+* optionally restrict command usage to specific text-channels
 
 Things to do:
 * ~~Turn `musicManager` into an object to contain and support multiple guilds.~~
 * Make sure it really really works
 * Get search working again
+* Auto-pause when nobody is left in channel
 
 Things left to test:
 * Sharing queue across multiple servers 
+
+Known Issues:  
+* On Windows playback seems to be cut short if there's any hint of lag. Probably not a good idea to play Overwatch and host this at the same time on the same system.
+* On Windows there seems to be a lot more occurrences of "Invalid Video". 
 
 Installation:
 ```bash
@@ -38,31 +45,52 @@ The module consists of a single function, which takes two arguments:
  * Initialize the music plugin.
  *
  * @param client The Discord.js client.
- * @param options (Optional) A set of options to use:
- *                prefix: The prefix to use for the command (default '!').
- *                global: Whether to use the same queue for all servers
- *                        instead of server-specific queues (default false).
- *                maxQueueSize: The maximum queue size (default 20).
- 				  volume: The volume to start playback at (default 50 [0.5]).
- 				  		  anyoneCanSkip: Allow anyone to skip a track (if disabled, only the music managers + the person who added can skip). (default false).
- 				  musicManager: The name of the Discord role approved to manage the bot. (default empty object)
- 				  clearInvoker: Have the bot remove messages which invoke, these are the one that start with the 		 prefix provided. (default false)
-
+ * @param options (Optional) A
  */
 music(client, options);
 ```
 
+Options:
+* `prefix` The prefix to use for the command (default '!').
+* `global`  Whether to use the same queue for all servers, instead of server-specific queues (default false).
+* `maxQueueSize` The maximum queue size (default 20)
+* `volume` The volume to start playback at (default 50 [0.5])
+* `anyOneCanSkip` Allow anyone to skip a track (if disabled, only the music managers + the person who added can skip). (default false).
+* `clearInvoker` Have the bot remove messages which invoke, these are the one that start with the prefix provided. (default false)
+* `autoJoin` An array containing voice channel ids to automatically join.
+* `musicChannels` An array containing text channel ids where the bot can be used. Note: adding one will limit globally, so be sure to add one per-server.
+
 How to add "Music Managers"
 ```javascript
 musicManager: {
-		'<server id>': '<role name>'
-	},
+	'<server id>': '<role name>'
+},
+```
+
+How to add auto join channels
+```JavaScript
+autoJoin: [
+	'<channel id>' // My Server Name (for reference)
+]
+```
+
+How to restrict bot to only be invoked from certain channels
+```JavaScript
+musicChannels: [
+	'<channel id>' // My Server Name (for reference)
+]
 ```
 
 **How to get server id?**
-1. Goto server settings  
-2. Select 'Widget'  
-3. Copy the number in `SERVER ID`
+1. Goto server settings.
+2. Select 'Widget'.
+3. Copy the number in `SERVER ID`.
+
+**How to get channel ids?**
+1. Go to _user_ settings.  
+2. Select 'Appearance'.  
+3. Check the box "Developer Mode"  
+4. Go to any server and right click the channel you want to get the ID of, and select 'Copy ID'
 
 **What permissions do the roles need?**
 - Nothing, this uses only the _name_ of the role rather than permissions.

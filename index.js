@@ -19,13 +19,34 @@ module.exports = function (client, options) {
 	let ALLOW_ALL_SKIP = (options && options.anyoneCanSkip) || false;
 	let MUSIC_MANAGER = (options && options.musicManager) || {};
 	let CLEAR_INVOKER = (options && options.clearInvoker) || false;
+	let AUTO_JOIN = (options && options.autoJoin) || [];
+	let MUSIC_CHANNELS = (options && options.musicChannels) || [];
 
 	// Create an object of queues.
 	let queues = {};
 
+	client.on('ready', function() {
+		if (AUTO_JOIN.length > 0) {
+			for (let i = 0; i < AUTO_JOIN.length; i++) {
+				// This is a cheaty way of doing it because half the time Discord.js's collections
+				// show up as undefined with .get. ¯\_(ツ)_/¯
+				let voiceChannel = client.channels.array().find(channel => channel.id === AUTO_JOIN[i]);
+				if (voiceChannel) {
+					voiceChannel.join();
+				} else {
+					console.log('Couldn\'t find: ' + AUTO_JOIN[i]);
+				}
+			}
+		}
+	});
+
 	// Catch message events.
 	client.on('message', msg => {
 		const message = msg.content.trim();
+
+		if (MUSIC_CHANNELS.length > 0 && MUSIC_CHANNELS.indexOf(msg.channel.id) == -1) {
+			return ;
+		}
 
 		// Check if the message is a command.
 		if (message.startsWith(PREFIX)) {
@@ -204,7 +225,7 @@ module.exports = function (client, options) {
 		}
 
 		// Send the queue and status.
-		msg.channel.sendMessage(wrap('Queue (' + queueStatus + '):\n' + text));
+		msg.channel.sendMessage(wrap('Queue (' + queueStatus + ' | ' + queue.length + '/' + MAX_QUEUE_SIZE + '):\n' + text));
 	}
 
 	/*
@@ -285,7 +306,12 @@ module.exports = function (client, options) {
 
 			// Leave the voice channel.
 			const voiceConnection = client.voiceConnections.find(val => val.channel.guild.id == msg.guild.id);
-			if (voiceConnection !== null) return voiceConnection.disconnect();
+			if (AUTO_JOIN.indexOf(voiceConnection.channel.id) == -1) { 
+				if (voiceConnection !== null) return voiceConnection.disconnect();
+			} else {
+				// Prevent further execution; standby
+				return ;
+			}
 		}
 
 		new Promise((resolve, reject) => {
