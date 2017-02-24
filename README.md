@@ -86,9 +86,9 @@ musicChannels: [
 ```
 
 **How to get server id?**  
-1. Goto server settings.
-2. Select 'Widget'.
-3. Copy the number in `SERVER ID`.
+1. Goto server settings.  
+2. Select 'Widget'.  
+3. Copy the number in `SERVER ID`.  
 
 **How to get channel ids?**  
 1. Go to _user_ settings.  
