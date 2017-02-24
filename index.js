@@ -1,5 +1,6 @@
-const YoutubeDL = require('youtube-dl');
+const YouTubeAPI = require('youtube-node');
 const ytdl = require('ytdl-core');
+let fs = require('fs');
 
 /*
  * Takes a discord.js client and turns it into a music bot.
@@ -21,6 +22,23 @@ module.exports = function (client, options) {
 	let CLEAR_INVOKER = (options && options.clearInvoker) || false;
 	let AUTO_JOIN = (options && options.autoJoin) || [];
 	let MUSIC_CHANNELS = (options && options.musicChannels) || [];
+	let ALLOW_SEARCH = (options && options.allowSearch) || true;
+
+	// These are YouTube specific options
+	// These are totally untested doc.
+	let SAFE_SEARCH = (options && options.yt && options.yt.safeSearch) || 'none';
+	let DEFINITION_SEARCH = (options && options.yt && options.yt.videoDefinition) || 'any';
+	let DURATION_SEARCH = (options && options.yt && options.yt.videoDuration) || 'any';
+
+	let YouTube = new YouTubeAPI();
+	if (options && options.youtube) YouTube.setKey(options.youtube);
+	else throw new Error("No YouTube API key provided.");
+
+	// This will make sure these options are added to each request
+	YouTube.addParam('type', 'video');
+	YouTube.addParam('safeSearch', SAFE_SEARCH);
+	YouTube.addParam('videoDefinition', DEFINITION_SEARCH);
+	YouTube.addParam('videoDuration', DURATION_SEARCH);
 
 	// Create an object of queues.
 	let queues = {};
@@ -74,6 +92,30 @@ module.exports = function (client, options) {
 			}
 		}
 	});
+
+	/*
+     * Async fetching of first search result or a YouTube video URL
+	 * @param suffix Command suffix.
+	 * @return Promise resolves a YouTube video ID
+	 */
+	function getYouTubeVideo(suffix) {
+		return new Promise((resolve, reject) => {
+			if (!suffix.toLowerCase().startsWith('https://www.youtube.com/watch?v=')) {
+				if (!ALLOW_SEARCH) reject("Searching has been disabled.")
+				YouTube.search(suffix, 1, (error, result) => {
+					if (error) {
+						reject(error.message);
+					} else if (result.items.length == 0 || result.items[0].id.videoId === undefined) {
+						reject("No results");
+					} else {
+						resolve(result.items[0].id.videoId);
+					}
+				});
+			} else {
+				resolve(suffix.replace("https://www.youtube.com/watch?v=", "").trim());
+			}
+		});
+	}
 
 	/*
 	 * @param guild:string - The unique id of the guild
@@ -136,32 +178,35 @@ module.exports = function (client, options) {
 
 		// Get the video information.
 		msg.channel.sendMessage(wrap('Searching...')).then(response => {
-			if (!suffix.toLowerCase().startsWith('http')) {
-				return msg.channel.sendMessage(wrap('You didn\'t provide a url!')).then((response) => {
-					response.delete(5000);
+			getYouTubeVideo(suffix).then((id) => {
+				YouTube.getById(id, (error, result) => {
+					if (error || result.items.length == 0) {
+						return response.edit(wrap('Invalid video!'));
+					}
+					else {
+						let info = {};
+
+						info.title = result.items[0].snippet.title;
+
+						info.url = "https://www.youtube.com/watch?v=" + id;
+						info.requester = msg.author.id;
+
+						// Queue the video.
+						response.edit(wrap('Queued: ' + info.title)).then(() => {
+							queue.push(info);
+
+							// Play if only one element in the queue.
+							if (queue.length === 1) executeQueue(msg, queue);
+						}).catch(() => {
+							
+						});
+					}
 				});
-			}
-
-			// Get the video info from youtube-dl.
-			YoutubeDL.getInfo(suffix, ['-q', '--no-warnings', '--force-ipv4'], (err, info) => {
-				// Verify the info.
-				if (err || info.format_id === undefined || info.format_id.startsWith('0')) {
-					return response.edit(wrap('Invalid video!'));
-				}
-
-				info.url = suffix;
-				info.requester = msg.author.id;
-
-				// Queue the video.
-				response.edit(wrap('Queued: ' + info.title)).then(() => {
-					queue.push(info);
-
-					// Play if only one element in the queue.
-					if (queue.length === 1) executeQueue(msg, queue);
-				}).catch(() => {
-				});
+			}).catch((error) => {
+				return response.edit(wrap(error));
 			});
 		}).catch(() => {
+
 		});
 	}
 
@@ -378,9 +423,7 @@ module.exports = function (client, options) {
 
 /*
  * Wrap text in a code block and escape grave characters.,
- *
  * @param text The input text.
- *
  * @return The wrapped text.
  */
 function wrap(text) {

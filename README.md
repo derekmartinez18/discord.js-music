@@ -63,6 +63,20 @@ Options:
 * `clearInvoker` Have the bot remove messages which invoke, these are the one that start with the prefix provided. (default false)
 * `autoJoin` An array containing voice channel ids to automatically join.
 * `musicChannels` An array containing text channel ids where the bot can be used. Note: adding one will limit globally, so be sure to add one per-server.
+* `allowSearch` If searching on YouTube should be allowed. (default true)
+* `youtube` (REQUIRED) your YouTube API key. (We strongly recommend storing this in Auth)
+* `yt` An object containing YouTube configuration options
+
+YouTube Configuration Options: 
+* `safeSearch` can be `none`, `moderate` or `strict`. Defines parental filters (default 'none')
+* `videoDefinition` can be `any`, `standard` or `high`. Will define what quality of videos should be searched (default 'any')
+* `videoDuration` can be `any`, `short`, `medium` or `long`.
+```
+any – Do not filter video search results based on their duration. This is the default value.
+long – Only include videos longer than 20 minutes.
+medium – Only include videos that are between four and 20 minutes long (inclusive).
+short – Only include videos that are less than four minutes long.
+```
 
 How to add "Music Managers"
 ```javascript
